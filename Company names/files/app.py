@@ -40,6 +40,45 @@ DEFAULT_KEYWORDS = {
     ]
 }
 
+def extract_company_url_from_swapcard(swapcard_url):
+    """Try to pull the company website link from a Swapcard exhibitor page."""
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        response = req.get(swapcard_url, headers=headers, timeout=10)
+        if response.status_code != 200:
+            return None
+
+        soup = BeautifulSoup(response.content, "html.parser")
+
+        # Look for any external link that isn't swapcard itself
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if (
+                href.startswith("http")
+                and "swapcard.com" not in href
+                and "linkedin.com" not in href
+                and "twitter.com" not in href
+                and "facebook.com" not in href
+            ):
+                return href
+
+        # Fallback: check meta tags for website
+        for meta in soup.find_all("meta"):
+            content = meta.get("content", "")
+            if content.startswith("http") and "swapcard.com" not in content:
+                return content
+
+        return None
+    except Exception:
+        return None
+
+
+def is_swapcard_url(url):
+    return "swapcard.com" in url
+
+
 def clean_text(text):
     if text:
         return re.sub(r'\s+', ' ', text).strip()
@@ -158,8 +197,23 @@ def run_job(job_id, urls, max_depth, keywords_by_category):
     for i, url in enumerate(urls):
         if job.get("cancelled"):
             break
-        job["log"].append(f"Scraping site {i+1}/{len(urls)}: {url}")
-        result = scrape_site(url, max_depth, job_id, keywords_by_category)
+
+        actual_url = url
+
+        # If it's a Swapcard URL, try to extract the real company website first
+        if is_swapcard_url(url):
+            job["log"].append(f"Resolving Swapcard page {i+1}/{len(urls)}: {url}")
+            company_url = extract_company_url_from_swapcard(url)
+            if company_url:
+                job["log"].append(f"Found company site: {company_url}")
+                actual_url = company_url
+            else:
+                job["log"].append(f"No company site found, scraping Swapcard page directly")
+            time.sleep(REQUEST_DELAY)
+
+        job["log"].append(f"Scraping site {i+1}/{len(urls)}: {actual_url}")
+        result = scrape_site(actual_url, max_depth, job_id, keywords_by_category)
+        result["swapcard_url"] = url if is_swapcard_url(url) else None
         job["results"].append(result)
         job["done"] = i + 1
 
