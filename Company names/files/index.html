@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Site Scraper & Relevance Ranker</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f7f6f3;
+    --surface: #ffffff;
+    --surface2: #f1f0ec;
+    --border: rgba(0,0,0,0.1);
+    --border2: rgba(0,0,0,0.18);
+    --text: #1a1a18;
+    --muted: #6b6a65;
+    --accent: #185FA5;
+    --accent-bg: #E6F1FB;
+    --green: #3B6D11;
+    --green-bg: #EAF3DE;
+    --amber: #854F0B;
+    --amber-bg: #FAEEDA;
+    --red: #A32D2D;
+    --red-bg: #FCEBEB;
+    --purple: #3C3489;
+    --purple-bg: #EEEDFE;
+    --teal: #0F6E56;
+    --teal-bg: #E1F5EE;
+    --coral: #993C1D;
+    --coral-bg: #FAECE7;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    min-height: 100vh;
+  }
+
+  .sidebar {
+    background: var(--surface);
+    border-right: 0.5px solid var(--border2);
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+
+  .main {
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  h1 {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+
+  .wordmark {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .wordmark-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+
+  textarea, input[type=text], input[type=number] {
+    width: 100%;
+    background: var(--surface2);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text);
+    resize: vertical;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  textarea:focus, input:focus {
+    border-color: var(--accent);
+  }
+
+  .depth-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .depth-row input[type=range] {
+    flex: 1;
+    height: 3px;
+    accent-color: var(--accent);
+  }
+
+  .depth-val {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 16px;
+    color: var(--accent);
+  }
+
+  .btn {
+    width: 100%;
+    padding: 9px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 0.5px solid var(--border2);
+    background: var(--text);
+    color: #fff;
+    transition: opacity 0.15s;
+  }
+
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-cancel {
+    background: transparent;
+    color: var(--red);
+    border-color: var(--red);
+    margin-top: -8px;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--muted);
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 0.5px solid var(--border);
+  }
+
+  .kw-category {
+    margin-bottom: 12px;
+  }
+
+  .kw-category label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    cursor: pointer;
+  }
+
+  .kw-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .progress-bar-wrap {
+    background: var(--surface2);
+    border-radius: 99px;
+    height: 4px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 99px;
+    transition: width 0.3s ease;
+  }
+
+  .log-box {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.5;
+    min-height: 30px;
+  }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 3px;
+  }
+
+  .stat-value {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+  }
+
+  .sort-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .sort-row select {
+    padding: 5px 8px;
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .filter-input {
+    padding: 5px 10px;
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    width: 180px;
+  }
+
+  .site-card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+
+  .site-card:hover { border-color: var(--border2); }
+
+  .site-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .site-rank {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    min-width: 22px;
+  }
+
+  .site-info { flex: 1; min-width: 0; }
+
+  .site-name {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .site-url {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .score-badge {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 99px;
+    white-space: nowrap;
+  }
+
+  .score-high { background: var(--green-bg); color: var(--green); }
+  .score-mid  { background: var(--amber-bg); color: var(--amber); }
+  .score-low  { background: var(--surface2);  color: var(--muted);  }
+
+  .relevance-bar-wrap {
+    padding: 0 16px 4px;
+  }
+
+  .cat-bars {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 0 16px 14px;
+  }
+
+  .cat-bar-item { }
+
+  .cat-bar-label {
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .cat-bar-track {
+    background: var(--surface2);
+    border-radius: 99px;
+    height: 5px;
+    overflow: hidden;
+  }
+
+  .cat-bar-fill {
+    height: 100%;
+    border-radius: 99px;
+  }
+
+  .site-pages {
+    display: none;
+    border-top: 0.5px solid var(--border);
+  }
+
+  .site-pages.open { display: block; }
+
+  .pages-header {
+    padding: 10px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    background: var(--surface2);
+  }
+
+  .page-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: start;
+    padding: 10px 16px;
+    border-top: 0.5px solid var(--border);
+    font-size: 12px;
+  }
+
+  .page-title {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .page-url {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .page-preview {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .match-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 5px;
+  }
+
+  .chip {
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 99px;
+    font-weight: 500;
+  }
+
+  .depth-badge {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 99px;
+    background: var(--surface2);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+
+  .empty-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    opacity: 0.3;
+  }
+
+  .export-btn {
+    padding: 6px 14px;
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text);
+    transition: background 0.15s;
+  }
+
+  .export-btn:hover { background: var(--surface2); }
+
+  @media (max-width: 700px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .cat-bars { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <aside class="sidebar">
+    <div>
+      <div class="wordmark">
+        <div class="wordmark-dot"></div>
+        <h1>Scraper</h1>
+      </div>
+      <div style="font-size:12px; color:var(--muted);">Paste URLs, scrape, rank by keyword relevance</div>
+    </div>
+
+    <div>
+      <label>URLs to scrape</label>
+      <textarea id="urls-input" rows="7" placeholder="https://example.com&#10;https://another-site.com&#10;One URL per line"></textarea>
+      <div style="font-size:11px; color:var(--muted); margin-top:4px;" id="url-count">0 URLs detected</div>
+    </div>
+
+    <div>
+      <label>Crawl depth (layers)</label>
+      <div class="depth-row">
+        <input type="range" id="depth-slider" min="0" max="5" value="2" step="1">
+        <span class="depth-val" id="depth-val">2</span>
+      </div>
+      <div style="font-size:11px; color:var(--muted); margin-top:4px;">Depth 0 = homepage only. Depth 5 = up to 5 layers deep.</div>
+    </div>
+
+    <div>
+      <div class="section-title">Keyword categories</div>
+      <div id="kw-categories"></div>
+    </div>
+
+    <div>
+      <button class="btn" id="start-btn" onclick="startScrape()">Start scraping</button>
+      <button class="btn btn-cancel" id="cancel-btn" style="display:none" onclick="cancelScrape()">Cancel</button>
+    </div>
+
+    <div id="progress-section" style="display:none">
+      <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;">
+        <span id="progress-text">Preparing...</span>
+        <span id="progress-pct" style="color:var(--accent); font-weight:600;">0%</span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+      </div>
+      <div class="log-box" id="log-box" style="margin-top:8px;"></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+      <div style="font-size:18px; font-weight:600; letter-spacing:-0.4px;">Results</div>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <input type="text" class="filter-input" id="filter-input" placeholder="Filter by domain..." oninput="renderResults()">
+        <select id="sort-select" onchange="renderResults()">
+          <option value="total_score">Sort: total score</option>
+          <option value="best_score">Sort: best page score</option>
+          <option value="pages_scraped">Sort: pages scraped</option>
+        </select>
+        <button class="export-btn" onclick="exportCSV()">Export CSV</button>
+      </div>
+    </div>
+
+    <div class="stats-row" id="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Sites scraped</div>
+        <div class="stat-value" id="stat-sites">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pages scraped</div>
+        <div class="stat-value" id="stat-pages">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Relevant sites</div>
+        <div class="stat-value" id="stat-relevant">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Top scorer</div>
+        <div class="stat-value" style="font-size:13px; padding-top:4px;" id="stat-top">—</div>
+      </div>
+    </div>
+
+    <div id="results-area">
+      <div class="empty-state">
+        <div class="empty-icon">⬡</div>
+        <div style="font-weight:500; margin-bottom:4px;">No results yet</div>
+        <div style="font-size:12px;">Paste URLs in the sidebar and hit Start scraping</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const API = "http://localhost:5050";
+
+const CAT_COLORS = {
+  role_fit:        { fill: "#EAF3DE", text: "#3B6D11", bar: "#639922" },
+  tech_stack:      { fill: "#EEEDFE", text: "#3C3489", bar: "#7F77DD" },
+  hardware:        { fill: "#E1F5EE", text: "#0F6E56", bar: "#1D9E75" },
+  company_signals: { fill: "#FAEEDA", text: "#854F0B", bar: "#EF9F27" },
+};
+
+let currentJobId = null;
+let pollTimer = null;
+let allResults = [];
+let defaultKeywords = {};
+let customKeywords = {};
+
+async function init() {
+  const res = await fetch(`${API}/keywords/defaults`);
+  defaultKeywords = await res.json();
+  customKeywords = JSON.parse(JSON.stringify(defaultKeywords));
+  renderKeywordCategories();
+}
+
+function renderKeywordCategories() {
+  const el = document.getElementById("kw-categories");
+  el.innerHTML = "";
+  for (const [cat, kws] of Object.entries(defaultKeywords)) {
+    const col = CAT_COLORS[cat] || { fill: "#f1f0ec", text: "#444", bar: "#888" };
+    const label = cat.replace(/_/g, " ");
+    const div = document.createElement("div");
+    div.className = "kw-category";
+    div.innerHTML = `
+      <label>
+        <span class="kw-dot" style="background:${col.bar}"></span>
+        <span style="font-size:12px; font-weight:600; text-transform:none; letter-spacing:0; color:var(--text)">${label}</span>
+        <span style="font-size:11px; color:var(--muted); margin-left:auto">${kws.length} terms</span>
+      </label>
+      <div style="font-size:11px; color:var(--muted); line-height:1.5">${kws.slice(0,6).join(", ")}${kws.length>6?" …":""}</div>
+    `;
+    el.appendChild(div);
+  }
+}
+
+document.getElementById("urls-input").addEventListener("input", function() {
+  const urls = parseURLs(this.value);
+  document.getElementById("url-count").textContent = `${urls.length} URL${urls.length===1?"":"s"} detected`;
+});
+
+document.getElementById("depth-slider").addEventListener("input", function() {
+  document.getElementById("depth-val").textContent = this.value;
+});
+
+function parseURLs(text) {
+  return text.split("\n").map(u => u.trim()).filter(u => u.startsWith("http"));
+}
+
+async function startScrape() {
+  const urls = parseURLs(document.getElementById("urls-input").value);
+  if (!urls.length) { alert("Please enter at least one URL."); return; }
+
+  const depth = parseInt(document.getElementById("depth-slider").value);
+
+  document.getElementById("start-btn").disabled = true;
+  document.getElementById("cancel-btn").style.display = "block";
+  document.getElementById("progress-section").style.display = "block";
+  document.getElementById("progress-text").textContent = "Starting...";
+  document.getElementById("progress-fill").style.width = "0%";
+  document.getElementById("progress-pct").textContent = "0%";
+  allResults = [];
+  renderResults();
+
+  const res = await fetch(`${API}/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ urls, max_depth: depth, keywords: customKeywords })
+  });
+  const data = await res.json();
+  if (data.error) { alert(data.error); resetUI(); return; }
+
+  currentJobId = data.job_id;
+  poll();
+}
+
+function poll() {
+  pollTimer = setInterval(async () => {
+    if (!currentJobId) return;
+    const res = await fetch(`${API}/status/${currentJobId}`);
+    const data = await res.json();
+
+    const pct = data.total > 0 ? Math.round((data.done / data.total) * 100) : 0;
+    document.getElementById("progress-fill").style.width = pct + "%";
+    document.getElementById("progress-pct").textContent = pct + "%";
+    document.getElementById("progress-text").textContent = `${data.done} / ${data.total} sites`;
+    document.getElementById("log-box").textContent = data.log.slice(-1)[0] || "";
+
+    allResults = data.results;
+    renderResults();
+    updateStats(data.results);
+
+    if (data.status === "done") {
+      clearInterval(pollTimer);
+      resetUI();
+    }
+  }, 1200);
+}
+
+async function cancelScrape() {
+  if (currentJobId) {
+    await fetch(`${API}/cancel/${currentJobId}`, { method: "POST" });
+  }
+  clearInterval(pollTimer);
+  resetUI();
+}
+
+function resetUI() {
+  document.getElementById("start-btn").disabled = false;
+  document.getElementById("cancel-btn").style.display = "none";
+  currentJobId = null;
+}
+
+function updateStats(results) {
+  const totalPages = results.reduce((s, r) => s + r.pages_scraped, 0);
+  const relevant = results.filter(r => r.total_score > 0).length;
+  const top = results.sort((a,b) => b.total_score - a.total_score)[0];
+  document.getElementById("stat-sites").textContent = results.length;
+  document.getElementById("stat-pages").textContent = totalPages;
+  document.getElementById("stat-relevant").textContent = relevant;
+  document.getElementById("stat-top").textContent = top ? new URL(top.start_url).hostname : "—";
+}
+
+function renderResults() {
+  const sortBy = document.getElementById("sort-select").value;
+  const filter = document.getElementById("filter-input").value.toLowerCase();
+
+  let data = [...allResults];
+  if (filter) data = data.filter(r => r.start_url.toLowerCase().includes(filter));
+  data.sort((a, b) => b[sortBy] - a[sortBy]);
+
+  const el = document.getElementById("results-area");
+
+  if (!data.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">⬡</div><div style="font-weight:500; margin-bottom:4px;">No results yet</div><div style="font-size:12px;">Paste URLs in the sidebar and hit Start scraping</div></div>`;
+    return;
+  }
+
+  const maxScore = data[0]?.total_score || 1;
+  const cats = Object.keys(CAT_COLORS);
+  const maxCatScores = {};
+  cats.forEach(c => {
+    maxCatScores[c] = Math.max(...data.map(r => {
+      const s = r.total_score > 0 ? Object.entries(r.top_matches || {}).reduce((acc, [k, v]) => acc + v.length, 0) : 0;
+      return data.reduce((acc2, rr) => Math.max(acc2, (rr.pages||[]).reduce((ps, p) => ps + (p.scores?.[c]||0), 0)), 0);
+    }), 1)
+  });
+
+  el.innerHTML = data.map((site, idx) => {
+    const hostname = (() => { try { return new URL(site.start_url).hostname; } catch { return site.start_url; }})();
+    const scoreClass = site.total_score >= 10 ? "score-high" : site.total_score >= 3 ? "score-mid" : "score-low";
+
+    const catScores = cats.map(c => {
+      const val = (site.pages || []).reduce((s, p) => s + (p.scores?.[c] || 0), 0);
+      const col = CAT_COLORS[c] || {};
+      const pct = maxCatScores[c] ? Math.round((val / maxCatScores[c]) * 100) : 0;
+      const label = c.replace(/_/g, " ");
+      return `<div class="cat-bar-item">
+        <div class="cat-bar-label" title="${label}">${label}</div>
+        <div class="cat-bar-track">
+          <div class="cat-bar-fill" style="width:${pct}%; background:${col.bar || '#888'}"></div>
+        </div>
+        <div style="font-size:10px; color:var(--muted); margin-top:2px">${val} hits</div>
+      </div>`;
+    }).join("");
+
+    const topPages = [...(site.pages || [])].sort((a,b) => b.total_score - a.total_score).slice(0, 8);
+
+    const pageRows = topPages.map(p => {
+      const chips = Object.entries(p.matches || {}).flatMap(([cat, kws]) =>
+        kws.slice(0,3).map(kw => {
+          const col = CAT_COLORS[cat] || {};
+          return `<span class="chip" style="background:${col.fill||'#eee'}; color:${col.text||'#333'}">${kw}</span>`;
+        })
+      ).join("");
+
+      return `<div class="page-row">
+        <div>
+          <div class="page-title"><a href="${p.url}" target="_blank" style="color:var(--accent); text-decoration:none">${p.title || p.url}</a></div>
+          <div class="page-url">${p.url}</div>
+          ${p.text_preview ? `<div class="page-preview">${p.text_preview.replace(/</g,"&lt;")}</div>` : ""}
+          ${chips ? `<div class="match-chips">${chips}</div>` : ""}
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+          <span class="depth-badge">depth ${p.depth}</span>
+          <span class="score-badge ${p.total_score>=5?"score-high":p.total_score>=2?"score-mid":"score-low"}">${p.total_score}</span>
+        </div>
+      </div>`;
+    }).join("");
+
+    return `<div class="site-card" id="card-${idx}">
+      <div class="site-header" onclick="togglePages(${idx})">
+        <div class="site-rank">#${idx+1}</div>
+        <div class="site-info">
+          <div class="site-name">${hostname}</div>
+          <div class="site-url">${site.start_url}</div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+          <span class="score-badge ${scoreClass}">${site.total_score} pts</span>
+          <span style="font-size:10px; color:var(--muted)">${site.pages_scraped} pages</span>
+        </div>
+      </div>
+      <div class="cat-bars">${catScores}</div>
+      <div class="site-pages" id="pages-${idx}">
+        <div class="pages-header">Top pages by relevance</div>
+        ${pageRows || `<div style="padding:14px 16px; font-size:12px; color:var(--muted)">No pages scraped yet</div>`}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function togglePages(idx) {
+  const el = document.getElementById(`pages-${idx}`);
+  el.classList.toggle("open");
+}
+
+function exportCSV() {
+  if (!allResults.length) return;
+  const rows = [["rank","url","total_score","pages_scraped","best_page_score", ...Object.keys(CAT_COLORS)]];
+  [...allResults].sort((a,b) => b.total_score - a.total_score).forEach((site, i) => {
+    const catVals = Object.keys(CAT_COLORS).map(c =>
+      (site.pages || []).reduce((s, p) => s + (p.scores?.[c] || 0), 0)
+    );
+    rows.push([i+1, site.start_url, site.total_score, site.pages_scraped, site.best_score, ...catVals]);
+  });
+  const csv = rows.map(r => r.map(v => `"${v}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "scraper_results.csv";
+  a.click();
+}
+
+init();
+</script>
+</body>
+</html>
